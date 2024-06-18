@@ -1,0 +1,114 @@
+######################### Figure 3 #########################
+
+######################### subseting data for cell chat ########################
+
+control_chat = subset(sort_neurogensis_ss, cells = as.vector(rownames(sort_neurogensis_ss@meta.data[sort_neurogensis_ss@meta.data$condition=="control",])))
+shank3_chat = subset(sort_neurogensis_ss, cells = as.vector(rownames(sort_neurogensis_ss@meta.data[sort_neurogensis_ss@meta.data$condition=="OE_shank3",])))
+
+######################### control ########################
+
+data.input <- control_chat[["RNA"]]@data
+
+meta <- control_chat@active.ident
+
+control_chat <- AddMetaData(control_chat, metadata = meta, col.name = "samples")
+
+cellChat_control <- createCellChat(object = control_chat, group.by = "samples", assay = "RNA")
+
+CellChatDB <- CellChatDB.mouse
+showDatabaseCategory(CellChatDB)
+
+# use a subset of CellChatDB for cell-cell communication analysis
+CellChatDB.use <- subsetDB(CellChatDB, search = "Secreted Signaling", key = "annotation") # use Secreted Signaling
+
+# set the used database in the object
+cellChat_control@DB <- CellChatDB.use
+
+# subset the expression data of signaling genes for saving computation cost
+cellChat_control <- subsetData(cellChat_control) # This step is necessary even if using the whole database
+future::plan("multisession", workers = 48) # do parallel
+cellChat_control <- identifyOverExpressedGenes(cellChat_control)
+cellChat_control <- identifyOverExpressedInteractions(cellChat_control)
+#> The number of highly variable ligand-receptor pairs used for signaling inference is 692
+cellChat_control <- projectData(cellChat_control, PPI.mouse)
+
+cellChat_control <- computeCommunProb(cellChat_control, raw.use = TRUE)
+cellChat_control <- filterCommunication(cellChat_control, min.cells = 10)
+cellChat_control <- computeCommunProbPathway(cellChat_control)
+cellChat_control <- aggregateNet(cellChat_control)
+cellChat_control <- netAnalysis_computeCentrality(cellChat_control, slot.name = "netP")
+
+######################### shank3 oe ########################
+
+data.input <- shank3_chat[["RNA"]]@data
+
+meta <- shank3_chat@active.ident
+
+shank3_chat <- AddMetaData(shank3_chat, metadata = meta, col.name = "samples")
+
+cellChat_shank3 <- createCellChat(object = shank3_chat, group.by = "samples", assay = "RNA")
+
+CellChatDB <- CellChatDB.mouse
+showDatabaseCategory(CellChatDB)
+
+# use a subset of CellChatDB for cell-cell communication analysis
+CellChatDB.use <- subsetDB(CellChatDB, search = "Secreted Signaling", key = "annotation") # use Secreted Signaling
+
+# set the used database in the object
+cellChat_shank3@DB <- CellChatDB.use
+
+# subset the expression data of signaling genes for saving computation cost
+cellChat_shank3 <- subsetData(cellChat_shank3) # This step is necessary even if using the whole database
+future::plan("multisession", workers = 48) # do parallel
+cellChat_shank3 <- identifyOverExpressedGenes(cellChat_shank3)
+cellChat_shank3 <- identifyOverExpressedInteractions(cellChat_shank3)
+#> The number of highly variable ligand-receptor pairs used for signaling inference is 692
+cellChat_shank3 <- projectData(cellChat_shank3, PPI.mouse)
+
+cellChat_shank3 <- computeCommunProb(cellChat_shank3, raw.use = TRUE)
+cellChat_shank3 <- filterCommunication(cellChat_shank3, min.cells = 10)
+cellChat_shank3 <- computeCommunProbPathway(cellChat_shank3)
+cellChat_shank3 <- aggregateNet(cellChat_shank3)
+cellChat_shank3 <- netAnalysis_computeCentrality(cellChat_shank3, slot.name = "netP")
+
+######################### control and shank3_oe cellchat data integration ########################
+
+object.list <- list(con = cellChat_control, oe = cellChat_shank3)
+cellchat <- mergeCellChat(object.list, add.names = names(object.list))
+
+######################### figure 3a ########################
+
+par(mfrow = c(1,2), xpd=TRUE)
+netVisual_diffInteraction(cellchat, weight.scale = T)
+gg1 <- netVisual_heatmap(cellchat)
+gg1
+
+######################### figure 3b ########################
+
+weight.max <- getMaxWeight(object.list, slot.name = c("idents", "net", "net"), attribute = c("idents","count", "count.merged"))
+par(mfrow = c(1,2), xpd=TRUE)
+for (i in 1:length(object.list)) {
+  netVisual_circle(object.list[[i]]@net$count.merged, weight.scale = T, label.edge= T, edge.weight.max = weight.max[3], edge.width.max = 12, title.name = paste0("Number of interactions - ", names(object.list)[i]))
+}
+
+gg2 <- netAnalysis_signalingChanges_scatter(cellchat, idents.use = "qNSCs", signaling.exclude = "MIF")
+patchwork::wrap_plots(plots = list(gg2))
+
+######################### figure 3c ########################
+gg3 <- rankNet(cellchat, mode = "comparison", measure = "weight", sources.use = NULL, targets.use = NULL, stacked = F, do.stat = TRUE, color.use = c("lightgray", "#923230"))
+gg3
+
+######################### figure 3d ########################
+
+netVisual_bubble(cellchat, sources.use = 1, targets.use = c(1:4),  comparison = c(1, 2), angle.x = 45, dot.size.max = 5)
+
+######################### supple figure 6a-c ########################
+
+netVisual_bubble(cellchat, sources.use = 2, targets.use = c(1:4),  comparison = c(1, 2), angle.x = 45, dot.size.max = 5)
+netVisual_bubble(cellchat, sources.use = 3, targets.use = c(1:4),  comparison = c(1, 2), angle.x = 45, dot.size.max = 5)
+netVisual_bubble(cellchat, sources.use = 4, targets.use = c(1:4),  comparison = c(1, 2), angle.x = 45, dot.size.max = 5)
+
+#############################figure 3e #####################################
+
+VlnPlot(sort_neurogensis_ss, features = c("Ptn", "Ptprz1", "Sdc2", "Sdc4", "Ncl"), 
+        pt.size = 0, cols = c("lightgray", "#F08C8D"), split.by = "condition")
