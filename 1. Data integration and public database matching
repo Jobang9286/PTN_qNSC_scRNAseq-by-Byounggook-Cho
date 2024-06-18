@@ -48,7 +48,7 @@ shank3_OE@meta.data$condition <- "OE_shank3"
 
 ########## public SVZ sc_data matching ############
 
-public <- readRDS("/home/student/oe_data/P2_P12_P22_dSVZ_Seq.rds")
+public <- readRDS("./P2_P12_P22_dSVZ_Seq.rds")
 
 public_q@meta.data$condition <- "Marcy_2023"
 public_q@meta.data$sample <- "Marcy_2023"
