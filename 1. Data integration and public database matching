@@ -15,7 +15,7 @@ library(ComplexHeatmap)
 
 #######################control_rep1##########################################
 
-control_rep1 <- Read10X(data.dir = "/home/student/oe_data/con_1(chd8 control)/filtered_feature_bc_matrix/")
+control_rep1 <- Read10X(data.dir = "./control_rep1/")
 control_rep1 <- CreateSeuratObject(counts = control_rep1, project = "control_rep1", min.cells = 3, min.features = 200)
 control_rep1
 control_rep1[["percent.mt"]] <- PercentageFeatureSet(control_rep1, pattern = "^mt-")
@@ -26,7 +26,7 @@ control_rep1@meta.data$condition <- "control"
 
 #######################control_rep2##########################################
 
-control_rep2 <- Read10X(data.dir = "/home/student/oe_data/con_3(mol psy)/")
+control_rep2 <- Read10X(data.dir = "./control_rep2/")
 control_rep2 <- CreateSeuratObject(counts = control_rep2, project = "control_rep2", min.cells = 3, min.features = 200)
 control_rep2
 control_rep2[["percent.mt"]] <- PercentageFeatureSet(control_rep2, pattern = "^mt-")
@@ -37,7 +37,7 @@ control_rep2@meta.data$condition <- "control"
 
 ################################### Shank3 OE ##############################
 
-shank3_OE <- Read10X(data.dir = "/home/student/oe_data/shank_Oe/filtered_feature_bc_matrix/")
+shank3_OE <- Read10X(data.dir = "./shank_Oe/")
 shank3_OE <- CreateSeuratObject(counts = shank3_OE, project = "shank3_OE", min.cells = 3, min.features = 200)
 shank3_OE
 shank3_OE[["percent.mt"]] <- PercentageFeatureSet(shank3_OE, pattern = "^mt-")
