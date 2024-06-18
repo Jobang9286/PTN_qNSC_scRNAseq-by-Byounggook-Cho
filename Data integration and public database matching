@@ -1,0 +1,108 @@
+library(Seurat)
+library(dplyr)
+library(CellChat)
+library(patchwork)
+library(tradeSeq)
+library(UpSetR)
+library(pheatmap)
+library(slingshot)
+library(RColorBrewer)
+library(slingshot)
+library(SAVER)
+library(NMF)
+library(circlize)
+library(ComplexHeatmap)
+
+#######################control_rep1##########################################
+
+control_rep1 <- Read10X(data.dir = "/home/student/oe_data/con_1(chd8 control)/filtered_feature_bc_matrix/")
+control_rep1 <- CreateSeuratObject(counts = control_rep1, project = "control_rep1", min.cells = 3, min.features = 200)
+control_rep1
+control_rep1[["percent.mt"]] <- PercentageFeatureSet(control_rep1, pattern = "^mt-")
+VlnPlot(control_rep1, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+control_rep1 <- subset(control_rep1, subset = percent.mt < 10 & nFeature_RNA > 1000 & nFeature_RNA < 4000 & nCount_RNA < 15000)
+control_rep1@meta.data$sample <- "control_rep1"
+control_rep1@meta.data$condition <- "control"
+
+#######################control_rep2##########################################
+
+control_rep2 <- Read10X(data.dir = "/home/student/oe_data/con_3(mol psy)/")
+control_rep2 <- CreateSeuratObject(counts = control_rep2, project = "control_rep2", min.cells = 3, min.features = 200)
+control_rep2
+control_rep2[["percent.mt"]] <- PercentageFeatureSet(control_rep2, pattern = "^mt-")
+VlnPlot(control_rep2, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+control_rep2 <- subset(control_rep2, subset = percent.mt < 10 & nFeature_RNA > 1000 & nFeature_RNA < 4000 & nCount_RNA < 15000)
+control_rep2@meta.data$sample <- "control_rep2"
+control_rep2@meta.data$condition <- "control"
+
+################################### Shank3 OE ##############################
+
+shank3_OE <- Read10X(data.dir = "/home/student/oe_data/shank_Oe/filtered_feature_bc_matrix/")
+shank3_OE <- CreateSeuratObject(counts = shank3_OE, project = "shank3_OE", min.cells = 3, min.features = 200)
+shank3_OE
+shank3_OE[["percent.mt"]] <- PercentageFeatureSet(shank3_OE, pattern = "^mt-")
+VlnPlot(shank3_OE, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+shank3_OE <- subset(shank3_OE, subset = percent.mt < 10 & nFeature_RNA > 800 & nFeature_RNA < 4000 & nCount_RNA < 10000)
+shank3_OE@meta.data$sample <- "OE_shank3"
+shank3_OE@meta.data$condition <- "OE_shank3"
+
+########## public SVZ sc_data matching ############
+
+public <- readRDS("/home/student/oe_data/P2_P12_P22_dSVZ_Seq.rds")
+
+public_q@meta.data$condition <- "Marcy_2023"
+public_q@meta.data$sample <- "Marcy_2023"
+
+DimPlot(public_q, reduction = "umap",label = T, label.size = 8)
+
+public_q <- subset(public, idents = c("P22_qNSCs", "P22_aNSCs", "P22_TAPs", "P22_Neuroblasts", "P22_Astrocytes", "P22_Microglia", "P22_Ependymal cells", "P22_Endothelial/Mural cells", "P22_Oligos"))
+
+############################ Integration ############################ 
+
+ifnb.list <- list(control_rep1, control_rep2, shank3_OE, public_q)
+
+features <- SelectIntegrationFeatures(object.list = ifnb.list)
+
+immune.anchors <- FindIntegrationAnchors(object.list = ifnb.list, anchor.features = features)
+
+shank3_combined <- IntegrateData(anchorset = immune.anchors)
+
+DefaultAssay(shank3_combined) <- "integrated"
+
+shank3_combined <- ScaleData(shank3_combined, verbose = FALSE)
+shank3_combined <- RunPCA(shank3_combined, npcs = 50, verbose = FALSE)
+shank3_combined <- RunUMAP(shank3_combined, reduction = "pca", dims = 1:50)
+shank3_combined <- FindNeighbors(shank3_combined, reduction = "pca", dims = 1:50)
+shank3_combined <- FindClusters(shank3_combined, resolution = 0.4)
+
+DimPlot(shank3_combined, reduction = "umap",label = T, label.size = 0, pt.size = 0.5)
+DimPlot(shank3_combined, reduction = "umap",label = T, label.size = 5, group.by = "Simplified_clusters")
+DimPlot(shank3_combined, reduction = "umap",label = T, label.size = 5, split.by = "sample")
+
+sort_neurogensis <- subset(shank3_combined, idents = c("4","6","14", "11", "18", "13", "9"))
+
+control_subset = subset(sort_neurogensis, cells = as.vector(rownames(sort_neurogensis@meta.data[sort_neurogensis@meta.data$condition=="control",])))
+
+shank3_subset = subset(sort_neurogensis, cells = as.vector(rownames(sort_neurogensis@meta.data[sort_neurogensis@meta.data$condition=="shank3_OE",])))
+
+sort_neurogensis <- ScaleData(sort_neurogensis, verbose = FALSE)
+sort_neurogensis <- RunPCA(sort_neurogensis, npcs = 30, verbose = FALSE)
+sort_neurogensis <- RunUMAP(sort_neurogensis, reduction = "pca", dims = 1:10)
+sort_neurogensis <- FindNeighbors(sort_neurogensis, reduction = "pca", dims = 1:10)
+sort_neurogensis <- FindClusters(sort_neurogensis, resolution = 0.8)
+
+DimPlot(sort_neurogensis, reduction = "umap",label = T, label.size = 10)
+DimPlot(sort_neurogensis, reduction = "umap",label = T, label.size = 5, group.by = "Simplified_clusters")
+DimPlot(sort_neurogensis, reduction = "umap",label = T, label.size = 5, split.by = "condition")
+
+sort_neurogensis_s = subset(sort_neurogensis, cells = as.vector(rownames(sort_neurogensis@meta.data[sort_neurogensis@meta.data$condition=="Marcy_2023",])), invert = T)
+
+sort_neurogensis_s <- ScaleData(sort_neurogensis_s, verbose = FALSE)
+sort_neurogensis_s <- RunPCA(sort_neurogensis_s, npcs = 30, verbose = FALSE)
+sort_neurogensis_s <- RunUMAP(sort_neurogensis_s, reduction = "pca", dims = 1:10)
+sort_neurogensis_s <- FindNeighbors(sort_neurogensis_s, reduction = "pca", dims = 1:10)
+sort_neurogensis_s <- FindClusters(sort_neurogensis_s, resolution = 0.6)
+
+DimPlot(sort_neurogensis_s, reduction = "umap",label = T, label.size = 5)
+
+DimPlot(sort_neurogensis_s, reduction = "umap",label = T, label.size = 5, split.by = "condition")
